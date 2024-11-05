@@ -48,6 +48,8 @@ post_actions() {
 # Ensure post_actions is called when the script exits
 trap post_actions EXIT
 
+echo -e "Hello Quality Camp! This is a simple message from my tests..."
+
 # Install Ginkgo and run tests
 go install github.com/onsi/ginkgo/v2/ginkgo@latest
 ginkgo --junit-report "$ARTIFACT_DIR"/junit_sample.xml
