@@ -1,0 +1,64 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: provision-cluster
+spec:
+  description: |
+    An integration test which provisions an ephemeral Hypershift cluster.
+  params:
+    - description: Snapshot of the application
+      name: SNAPSHOT
+      default: '{"components": [{"name":"test-app", "containerImage": "quay.io/example/repo:latest"}]}'
+      type: string
+    - name: oci-container-repo
+      default: 'quay.io/konflux-test-storage/quality-camp/k8s-demo'
+      description: The ORAS container used to store all test artifacts.
+  tasks:
+    - name: test-metadata
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/tekton-integration-catalog.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: common/tasks/test-metadata/0.1/test-metadata.yaml
+      params:
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+        - name: test-name
+          value: $(context.pipelineRun.name)
+    - name: inject-sealights-binaries
+      runAfter:
+        - test-metadata
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/flacatus/tekton-integration-catalog.git
+          - name: revision
+            value: sealights_build
+          - name: pathInRepo
+            value: tasks/sealights/build-binaries/0.1/build-binaries.yaml
+      params:
+        - name: image-url
+          value: $(tasks.test-metadata.results.container-image)
+        - name: git-revision
+          value: $(tasks.test-metadata.results.git-revision)
+    - name: register-sealights-build
+      runAfter:
+        - inject-sealights-binaries
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/flacatus/tekton-integration-catalog.git
+          - name: revision
+            value: sealights_build
+          - name: pathInRepo
+            value: tasks/sealights/build-binaries/0.1/build-binaries.yaml
+      params:
+        - name: image-url
+          value: $(tasks.inject-sealights-binaries.results.output-image)
