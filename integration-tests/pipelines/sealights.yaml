@@ -58,7 +58,9 @@ spec:
           - name: revision
             value: sealights_build
           - name: pathInRepo
-            value: tasks/sealights/build-binaries/0.1/build-binaries.yaml
+            value: tasks/sealights/register-build/0.1/register-build.yaml
       params:
         - name: image-url
           value: $(tasks.inject-sealights-binaries.results.output-image)
+        - name: git-revision
+          value: $(context.pipelineRun.name)
