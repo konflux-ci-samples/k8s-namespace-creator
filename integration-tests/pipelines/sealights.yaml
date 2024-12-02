@@ -45,7 +45,7 @@ spec:
           value: $(params.SNAPSHOT)
         - name: test-name
           value: $(context.pipelineRun.name)
-    - name: sealights-unit-tests
+    - name: build-sealights-binaries
       runAfter:
         - test-metadata
         - create-oci-container
@@ -57,78 +57,13 @@ spec:
           - name: revision
             value: sealights_build
           - name: pathInRepo
-            value: tasks/sealights/register-build/0.1/register-build.yaml
+            value: tasks/sealights/build-sealights-container/0.1/build-sealights-container.yaml
       params:
-        - name: source-repo
+        - name: git-url
           value: $(tasks.test-metadata.results.source-repo-url)
-        - name: source-branch
-          value: $(tasks.test-metadata.results.source-repo-branch)
         - name: git-revision
           value: $(tasks.test-metadata.results.git-revision)
-
-    - name: integration-tests
-      runAfter:
-        - sealights-unit-tests
-      taskSpec:
-        volumes:
-          - name: konflux-test-infra-volume
-            secret:
-              secretName: konflux-test-infra
-          - name: konflux-sealights
-            secret:
-              secretName: sealights-secret
-        steps:
-          - name: e2e-test
-            image: quay.io/flacatus/go-test-tools:latest
-            volumeMounts:
-              - name: konflux-test-infra-volume
-                mountPath: /usr/local/konflux-test-infra
-              - name: konflux-sealights
-                mountPath: /usr/local/konflux-sealights
-            workingDir: /workspace
-            env:
-              - name: JOB_SPEC
-                value: $(tasks.test-metadata.results.job-spec)
-              - name: SEALIGHTS_LOG_LEVEL
-                value: "debug"
-              - name: SEALIGHTS_LAB_ID
-                value: $(tasks.sealights-unit-tests.results.sealights-session-id)
-              - name: SEALIGHTS_BUILD_ID
-                value: $(tasks.sealights-unit-tests.results.build-id)
-            script: |
-              #!/bin/bash
-
-              export SEALIGHTS_TOKEN=$(cat /usr/local/konflux-sealights/token)
-
-              SLGO_AGENT_URL="https://agents.sealights.co/slgoagent/latest/slgoagent-linux-amd64.tar.gz"
-              SLCLI_URL="https://agents.sealights.co/slcli/latest/slcli-linux-amd64.tar.gz"
-
-              echo "[INFO] Downloading and extracting Sealights GO Agent..."
-              curl -sSL "$SLGO_AGENT_URL" | tar -xz -C /usr/local/bin/
-
-              echo "[INFO] Downloading and extracting Sealights CLI..."
-              curl -sSL "$SLCLI_URL" | tar -xz -C /usr/local/bin/
-
-              export GOBIN=$GOPATH/bin
-              export OCI_STORAGE_CONTAINER=$(tasks.create-oci-container.results.oci-container)
-
-              echo "The job metadata is:"
-              echo "$JOB_SPEC" | jq .
-
-              GIT_URL="${GIT_URL:-$(echo "$JOB_SPEC" | jq -r '.git.source_repo_url')}"
-              GIT_REVISION="${GIT_REVISION:-$(echo "$JOB_SPEC" | jq -r '.git.source_repo_branch')}"
-
-              echo -e "INFO: Cloning repository '$GIT_REPO' with revision '$GIT_REVISION' from URL '$GIT_URL'"
-              cd $(mktemp -d)
-              git clone -b "${GIT_REVISION}" "${GIT_URL}" .
-              git checkout "${GIT_REVISION}"
-
-              echo "build ${SEALIGHTS_BUILD_ID}"
-
-              slcli config init --lang go --token ${SEALIGHTS_TOKEN}
-              slcli config create-bsid --app k8s-namespace-creator --branch ${GIT_REVISION} --build ${SEALIGHTS_BUILD_ID}
-
-              # Install Ginkgo and run tests
-              go mod tidy && go mod vendor
-              go install github.com/onsi/ginkgo/v2/ginkgo@latest
-              ginkgo --junit-report "$ARTIFACT_DIR"/junit_sample.xml
+        - name: DOCKERFILE
+          value: ./Dockerfile.sealights
+        - name: IMAGE
+          value: $(tasks.test-metadata.results.container-image)
