@@ -1,0 +1,57 @@
+# Stage 1: Build the Go application
+FROM quay.io/flacatus/go-test-tools:latest AS builder
+
+ARG SERVICE_NAME
+ARG BRANCH_NAME
+ARG BUILD_NAME
+ARG SEALIGHTS_TOKEN
+ENV OS_ARCH linux-amd64
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the go.mod and go.sum files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+### Sealights instrumentation
+# Download and extract Sealights Go agent
+RUN wget -U "slgoagent" -q -O slgoagent.tar.gz \
+   https://agents.sealights.co/slgoagent/latest/slgoagent-${OS_ARCH}.tar.gz \
+    && tar -xvf slgoagent.tar.gz \
+    && rm slgoagent.tar.gz
+
+# Download and extract Sealights CLI
+RUN wget -U "slcli" -q -O slcli.tar.gz \
+    https://agents.sealights.co/slcli/latest/slcli-${OS_ARCH}.tar.gz \
+    && tar -xvf slcli.tar.gz \
+    && rm slcli.tar.gz
+
+# Save the Sealights token to a file and print its contents
+RUN echo "${SEALIGHTS_TOKEN}" > ./token.txt \
+    && cat ./token.txt
+
+# Sealights configuration
+RUN ./slcli config init --lang go --token ./token.txt
+RUN ./slcli config create-bsid --app ${SERVICE_NAME} --branch ${BRANCH_NAME} --build ${BUILD_NAME}
+
+# Run Sealights scan
+RUN ./slcli scan --bsid buildSessionId.txt --path-to-scanner ./slgoagent --workspacepath ./ --scm git --scmProvider github
+
+# Build the Go application
+RUN CGO_ENABLED=0 GOOS=linux go build -o namespace-creator main.go
+
+# Stage 2: Create a lightweight image
+FROM registry.access.redhat.com/ubi9/ubi:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/namespace-creator .
+
+# Set the entry point for the application
+ENTRYPOINT ["/app/namespace-creator"]
