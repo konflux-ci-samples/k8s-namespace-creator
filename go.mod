@@ -1,6 +1,6 @@
 module github.com/konflux-ci-samples/k8s-namespace-creator
 
-go 1.22.0
+go 1.25.0
 
 require (
 	github.com/onsi/ginkgo/v2 v2.20.2
@@ -40,7 +40,7 @@ require (
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
